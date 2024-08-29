@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Creative Chatbot</title>
+    <style>
+        /* Basic reset for margin and padding */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Main container for the chat */
+        .chat-container {
+            width: 400px;
+            max-width: 90%;
+            margin: 50px auto;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            background-color: #f7f7f9;
+        }
+
+        /* Header section */
+        .chat-header {
+            background-color: #0078d4;
+            padding: 15px;
+            color: white;
+            text-align: center;
+        }
+
+        /* Chat window where messages appear */
+        .chat-window {
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            background-color: white;
+            border-top: 1px solid #ddd;
+            border-bottom: 1px solid #ddd;
+        }
+
+        /* Styles for messages */
+        .bot-message, .user-message {
+            margin-bottom: 10px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            max-width: 80%;
+        }
+
+        .bot-message {
+            background-color: #e9ecef;
+            align-self: flex-start;
+            margin-right: auto;
+        }
+
+        .user-message {
+            background-color: #0078d4;
+            color: white;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        /* Input section */
+        .chat-input {
+            display: flex;
+            padding: 10px;
+            background-color: #f0f2f5;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        .chat-input button {
+            padding: 10px 15px;
+            margin-left: 10px;
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .chat-input button:hover {
+            background-color: #005a9e;
+        }
+
+        /* Contractor list and actions */
+        .contractor-list, .form-actions, .appointment-actions {
+            display: none;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>Chat with Us</h2>
+        </div>
+        <div class="chat-window" id="chatBox">
+            <div class="bot-message">Hi there! I'm here to help you connect with top-rated contractors. How can I assist you today?</div>
+        </div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+        <div class="contractor-list"></div>
+        <div class="form-actions">
+            <h3>Fill in the Form</h3>
+            <button onclick="submitForm()">Submit Form</button>
+        </div>
+        <div class="appointment-actions">
+            <h3>Set an Appointment</h3>
+            <button onclick="setAppointment()">Set Appointment</button>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript Functionality
+        function sendMessage() {
+            let message = document.getElementById('userInput').value.trim();
+            if (message === "") return;  // Do nothing if input is empty
+
+            // Display the user's message
+            displayMessage('user', message);
+
+            // Fetch the bot's response
+            fetch('http://127.0.0.1:5000/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayMessage('bot', data.response);
+                handleBotResponse(data.response);
+            })
+            .catch(error => {
+                displayMessage('bot', 'Oops! Something went wrong. Please try again later.');
+                console.error('Error:', error);
+            });
+
+            // Clear input field after sending message
+            document.getElementById('userInput').value = '';
+        }
+
+        function displayMessage(sender, message) {
+            let chatBox = document.getElementById('chatBox');
+            let messageElement = document.createElement('div');
+
+            if (sender === 'user') {
+                messageElement.className = 'user-message';
+            } else {
+                messageElement.className = 'bot-message';
+            }
+
+            messageElement.textContent = message;
+            chatBox.appendChild(messageElement);
+
+            // Scroll to the bottom of the chat box
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Handle bot responses for additional actions
+        function handleBotResponse(response) {
+            if (response.includes("Would you like to fill in a form, call a contractor, or set an appointment?")) {
+                // Show options
+                showOptions();
+            }
+        }
+
+        function showOptions() {
+            fetch('http://127.0.0.1:5000/get_contractors')
+            .then(response => response.json())
+            .then(data => {
+                let contractorList = document.querySelector('.contractor-list');
+                contractorList.innerHTML = '<h3>Select a Contractor</h3>';
+                data.contractors.forEach(contractor => {
+                    contractorList.innerHTML += `
+                        <div>
+                            <input type="checkbox" id="contractor${contractor.id}" value="${contractor.name}">
+                            <label for="contractor${contractor.id}">${contractor.name} (${contractor.phone})</label>
+                        </div>
+                    `;
+                });
+                contractorList.style.display = 'block';
+                document.querySelector('.form-actions').style.display = 'block';
+                document.querySelector('.appointment-actions').style.display = 'block';
+            });
+        }
+
+        function submitForm() {
+            let selectedContractors = Array.from(document.querySelectorAll('.contractor-list input:checked')).map(input => input.value);
+            fetch('http://127.0.0.1:5000/submit_form', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ selected_contractors: selectedContractors })
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayMessage('bot', data.message);
+            });
+        }
+
+        function setAppointment() {
+            let selectedContractors = Array.from(document.querySelectorAll('.contractor-list input:checked')).map(input => input.value);
+            fetch('http://127.0.0.1:5000/set_appointment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ selected_contractors: selectedContractors })
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayMessage('bot', data.message);
+            });
+        }
+
+        // Handle Enter key to send message
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>
